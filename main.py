@@ -14,6 +14,10 @@ async def main():
 
     print(f'Elapsed time: {time.perf_counter() - start_time}')
 
+    # OUT:
+    # Стоимость всех товаров на площадке: 45067195 руб.
+    # Elapsed time: 3.11463470000308
+
 
 if __name__ == '__main__':
     import asyncio
