@@ -12,14 +12,14 @@ async def main():
     product_url_list = await url_parser.get_url_for_each_product_card()
     print(await data_parser.get_total_product_price(product_url_list))
 
-    print(f'Elapsed time: {time.perf_counter() - start_time}')
+    print(f"Elapsed time: {time.perf_counter() - start_time}")
 
     # OUT:
     # Стоимость всех товаров на площадке: 45067195 руб.
     # Elapsed time: 3.11463470000308
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import asyncio
 
     asyncio.run(main())
