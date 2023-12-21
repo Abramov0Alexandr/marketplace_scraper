@@ -6,7 +6,6 @@ from httpx import AsyncClient
 
 
 class Parser(ABC):
-
     @staticmethod
     async def get_response(target_url: str | list) -> str | Any:
         """
@@ -17,7 +16,7 @@ class Parser(ABC):
         async with AsyncClient() as client:
             try:
                 response = await client.get(target_url, timeout=4)
-                response.encoding = 'utf8'
+                response.encoding = "utf8"
                 return response.text
 
             except httpx.ConnectTimeout as error:
