@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "marketplace-scraper"
+version = "0.1.0"
+description = "Small demonstration project on web scraping"
+authors = ["Alexandr Abramov <https://github.com/Abramov0Alexandr>"]
+license = "MIT License"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+requests = "^2.31.0"
+bs4 = "^0.0.1"
+lxml = "^4.9.4"
+httpx = "^0.26.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
