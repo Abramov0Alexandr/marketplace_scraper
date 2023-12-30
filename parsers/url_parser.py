@@ -13,6 +13,7 @@ class URLParser(Parser):
     - URL адреса каждой категории товара.
     - URL адреса всех страниц с товарами со всех категорий.
     - URL адреса каждого товара каждой категории.
+    - URL адреса каждого товара из указанной категории.
     """
 
     def __init__(self):
@@ -79,17 +80,11 @@ class URLParser(Parser):
 
         product_list_urls = await self.get_url_for_each_category_page()
 
-        if specific.strip().lower() not in self.available_categories:
-            return (
-                'The specified category "%s" does not  match any of the available pattern'
-                % specific
-            )
-
         async def fetch_products_page_urls(product_url: str) -> list:
             """
             Вложенная функция для обработки каждой страницы каждой категории товара.
             :param product_url: URL адрес каждой страницы всех категорий.
-            :return: Список, содержащий URL адреса на каждый товар.
+            :return: Множество списков, каждый из которых содержит URL адрес на товар.
             """
 
             product_pages_html = await self.get_response(product_url)
@@ -100,28 +95,40 @@ class URLParser(Parser):
                 for product_url in product_url_tags
             ]
 
-        tasks = [
-            fetch_products_page_urls(each_product_urls)
-            for each_product_urls in product_list_urls
-        ]
-        all_products_list_url = await asyncio.gather(*tasks)
-        result_urls_list = [url for sublist in all_products_list_url for url in sublist]
+        async def compile_final_url_list() -> list[str]:
+            """
+            Вложенная функция для составления итогового списка URL адресов товаров со всех категорий.
+            :return: Список URL адресов товаров со всех категорий.
+            """
+
+            tasks = [
+                fetch_products_page_urls(each_product_urls)
+                for each_product_urls in product_list_urls
+            ]
+            all_products_list_url = await asyncio.gather(*tasks)
+            return [url for sublist in all_products_list_url for url in sublist]
 
         if specific is None:
             # В случае, если категория товара не указана, то вернутся адреса товаров из всех категорий.
-            return result_urls_list
+            return await compile_final_url_list()
 
         if specific.strip().lower() in self.available_categories:
             # В случае, если категория определена, то будут возвращены адреса из указанной категории.
             urls_list: list = []
 
-            for url_page in result_urls_list:
+            for url_page in await compile_final_url_list():
                 try:
                     urls_list.append(re.search(rf"\b{specific}/\d", url_page).string)
                 except AttributeError:
                     pass
 
             return urls_list
+
+        if specific.strip().lower() not in self.available_categories:
+            return (
+                'The specified category "%s" does not  match any of the available pattern'
+                % specific
+            )
 
     def __str__(self):
         return (
