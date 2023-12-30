@@ -19,8 +19,5 @@ class Parser(ABC):
                 response.encoding = "utf8"
                 return response.text
 
-            except httpx.ConnectTimeout as error:
-                return error
-
-            except httpx.ReadTimeout as error:
-                return error
+            except (httpx.ConnectTimeout, httpx.ReadTimeout) as error:
+                print(error)
