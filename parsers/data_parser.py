@@ -13,6 +13,25 @@ class DataParser(Parser):
     Класс для работы с данными, полученными в ходе анализа HTML страниц товаров.
     """
 
+    def __init__(self):
+
+        self.inside_card_headers = [
+            "Наименование",
+            "Артикул",
+            "Бренд",
+            "Модель",
+            "Тип",
+            "Технология экрана",
+            "Материал корпуса",
+            "Материал браслета",
+            "Размер",
+            "Сайт производителя",
+            "Наличие",
+            "Цена",
+            "Старая цена",
+            "Ссылка на карточку с товаром",
+        ]
+
     async def get_total_product_price(self, products_url: list[str]) -> str:
         """
         Метод для получения суммы общей стоимости товаров, размещенной на площадке.
@@ -57,26 +76,58 @@ class DataParser(Parser):
         :return: None.
         """
 
+        # Создаем CSV файл и записываем заголовки
         with open("res.csv", "w", encoding="utf-8-sig", newline="") as file:
             writer = csv.writer(file, delimiter=";")
-            writer.writerow(
-                [
-                    "Наименование",
-                    "Артикул",
-                    "Бренд",
-                    "Модель",
-                    "Тип",
-                    "Технология экрана",
-                    "Материал корпуса",
-                    "Материал браслета",
-                    "Размер",
-                    "Сайт производителя",
-                    "Наличие",
-                    "Цена",
-                    "Старая цена",
-                    "Ссылка на карточку с товаром",
-                ]
-            )
+            writer.writerow(self.inside_card_headers)
+
+        # Получаем данные и записываем в CSV
+        (
+            title_list,
+            article_list,
+            description_list,
+            stock_list,
+            current_price_list,
+            old_price_list,
+            items_url,
+        ) = await self.get_data_from_item_card(products_url)
+
+        with open("res.csv", "a", encoding="utf-8-sig", newline="") as file:
+            writer = csv.writer(file, delimiter=";")
+            for title, article, descr, stock, cprice, oprice, url in zip(
+                title_list,
+                article_list,
+                description_list,
+                stock_list,
+                current_price_list,
+                old_price_list,
+                items_url,
+            ):
+                # Формируем строку для записи
+                flatten = (
+                    title,
+                    article,
+                    *[x.split(":")[1].strip() for x in descr if x],
+                    stock,
+                    cprice,
+                    oprice,
+                    url,
+                )
+
+                writer.writerow(flatten)
+
+        print("Таблица записана")
+
+    async def get_data_from_item_card(
+        self, products_url: list[str]
+    ) -> tuple[
+        list[str], list[str], list[str], list[str], list[str], list[str], list[str]
+    ]:
+        """
+        Метод для получения внутренней информации товара (раздел "Подробнее").
+        :param products_url: Список с URL адресами товаров.
+        :return: Кортеж из списков, содержащих информацию о каждом товаре.
+        """
 
         title_list: list = []
         article_list: list = []
@@ -109,34 +160,18 @@ class DataParser(Parser):
                 current_price_list.extend([item for item in items_current_price])
                 old_price_list.extend([item for item in items_old_price])
 
-        with open("res.csv", "a", encoding="utf-8-sig", newline="") as file:
-            writer = csv.writer(file, delimiter=";")
-            for title, article, descr, stock, cprice, oprice, url in zip(
-                title_list,
-                article_list,
-                description_list,
-                stock_list,
-                current_price_list,
-                old_price_list,
-                items_url,
-            ):
-                # Формируем строку для записи
-                flatten = (
-                    title,
-                    article,
-                    *[x.split(":")[1].strip() for x in descr if x],
-                    stock,
-                    cprice,
-                    oprice,
-                    url,
-                )
-
-                writer.writerow(flatten)
-
-        print("Таблица записана")
+        return (
+            title_list,
+            article_list,
+            description_list,
+            stock_list,
+            current_price_list,
+            old_price_list,
+            items_url,
+        )
 
     @staticmethod
-    def get_soup_data(item_url: Response, *args, **kwargs) -> list:
+    def get_soup_data(item_url: Response, *args, **kwargs) -> list[str]:
         """
         Метод для создания объекта BeautifulSoup и поиск элементов по указанным тегам и атрибутам.
         :param item_url: URL адрес на товар.
