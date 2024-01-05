@@ -20,7 +20,7 @@ class DataParser(Parser):
         :return: Информация об общей стоимости товаров.
         """
 
-        async def fetch_total_price_for_each_product(product_url: str):
+        async def fetch_total_price_for_each_product(product_url: str) -> int:
             """
             Вложенная функция для обхода всех URL адресов, сбора информации о количестве товаров и их стоимости.
             :param product_url: URL адрес товара.
@@ -50,7 +50,7 @@ class DataParser(Parser):
 
         return f"Стоимость всех товаров на площадке: {total_price} руб."
 
-    async def write_csv(self, products_url: list[str]):
+    async def write_csv(self, products_url: list[str]) -> None:
         """
         Метод для записи данных в формат csv.
         :param products_url: Список URL адресов на страницу товара.
@@ -84,7 +84,7 @@ class DataParser(Parser):
         stock_list: list = []
         current_price_list: list = []
         old_price_list: list = []
-        items_url = [page for page in products_url]
+        items_url: list["str"] = [page for page in products_url]
 
         with requests.Session() as session:
             for page in products_url:
