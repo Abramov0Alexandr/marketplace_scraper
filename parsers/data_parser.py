@@ -70,21 +70,36 @@ class DataParser(Parser):
         return f"Стоимость всех товаров на площадке: {total_price} руб."
 
     async def write_csv(
-        self, products_url: list[str], write_headers: bool = True
+        self,
+        products_url: list[str],
+        table_filename: str = "result_table",
+        write_headers: bool = True,
     ) -> None:
         """
         Метод для записи данных в формат csv.
+        :param table_filename: Название итогового файла.
         :param products_url: Список URL адресов на страницу товара.
         :param write_headers: Если флаг True, то в csv файле будут записаны заголовки таблицы.
         :return: None.
         """
 
+        # Получаем данные для записи в CSV.
+        (
+            title_list,
+            article_list,
+            description_list,
+            stock_list,
+            current_price_list,
+            old_price_list,
+            items_url,
+        ) = await self.__get_data_from_item_card(products_url)
+
         if write_headers:
             # Создаем CSV файл и записываем заголовки
-            await self.write_headers(self.inside_card_headers)
+            await self.write_headers(self.inside_card_headers, filename=table_filename)
 
-            # Получаем данные и записываем в CSV
-            (
+            # получаем данные и дополняем созданный CSV файл.
+            await self.card_data_writer(
                 title_list,
                 article_list,
                 description_list,
@@ -92,36 +107,12 @@ class DataParser(Parser):
                 current_price_list,
                 old_price_list,
                 items_url,
-            ) = await self.get_data_from_item_card(products_url)
-
-            with open("res.csv", "a", encoding="utf-8-sig", newline="") as file:
-                writer = csv.writer(file, delimiter=";")
-                for title, article, descr, stock, cprice, oprice, url in zip(
-                    title_list,
-                    article_list,
-                    description_list,
-                    stock_list,
-                    current_price_list,
-                    old_price_list,
-                    items_url,
-                ):
-                    # Формируем строку для записи
-                    flatten = (
-                        title,
-                        article,
-                        *[x.split(":")[1].strip() for x in descr if x],
-                        stock,
-                        cprice,
-                        oprice,
-                        url,
-                    )
-
-                    writer.writerow(flatten)
+                filename=table_filename,
+                mode="a",
+            )
 
         else:
-
-            # Получаем данные и записываем в CSV
-            (
+            await self.card_data_writer(
                 title_list,
                 article_list,
                 description_list,
@@ -129,41 +120,16 @@ class DataParser(Parser):
                 current_price_list,
                 old_price_list,
                 items_url,
-            ) = await self.get_data_from_item_card(products_url)
+                filename=table_filename,
+            )
 
-            with open("res.csv", "w", encoding="utf-8-sig", newline="") as file:
-                writer = csv.writer(file, delimiter=";")
-                for title, article, descr, stock, cprice, oprice, url in zip(
-                    title_list,
-                    article_list,
-                    description_list,
-                    stock_list,
-                    current_price_list,
-                    old_price_list,
-                    items_url,
-                ):
-                    # Формируем строку для записи
-                    flatten = (
-                        title,
-                        article,
-                        *[x.split(":")[1].strip() for x in descr if x],
-                        stock,
-                        cprice,
-                        oprice,
-                        url,
-                    )
-
-                    writer.writerow(flatten)
-
-        print("Таблица записана")
-
-    async def get_data_from_item_card(
+    async def __get_data_from_item_card(
         self, products_url: list[str]
     ) -> tuple[
         list[str], list[str], list[str], list[str], list[str], list[str], list[str]
     ]:
         """
-        Метод для получения внутренней информации товара (раздел "Подробнее").
+        Метод для получения внутренней информации с карточки товара (раздел "Подробнее").
         :param products_url: Список с URL адресами товаров.
         :return: Кортеж из списков, содержащих информацию о каждом товаре.
         """
@@ -209,7 +175,7 @@ class DataParser(Parser):
             items_url,
         )
 
-    async def get_data_from_page(
+    async def __get_data_from_page(
         self, products_page_url: list[str]
     ) -> tuple[list[str], list[str], list[str]]:
         """
@@ -246,10 +212,52 @@ class DataParser(Parser):
         )
 
     @staticmethod
-    async def write_headers(table_headers: list):
-        with open("res.csv", "w", encoding="utf-8-sig", newline="") as file:
+    async def write_headers(
+        table_headers: list,
+        filename: str,
+    ) -> None:
+        """
+        Метод для первоначального создания CSV файла и записи в него заголовков таблицы.
+        :param table_headers: Заголовки для их записи в таблицу.
+        :param filename: Название файла, по умолчанию "result_table.csv"
+        :return: None.
+        """
+
+        with open(f"{filename}.csv", "w", encoding="utf-8-sig", newline="") as file:
             writer = csv.writer(file, delimiter=";")
             writer.writerow(table_headers)
+
+    @staticmethod
+    async def card_data_writer(
+        *args: list[str],
+        filename: str,
+        mode: str = "w",
+    ) -> None:
+        """
+        Метод для записи переданных данных в файл формата CSV.
+        :param args: Списки, содержащие информацию о товарах.
+        :param filename: Название файла, по умолчанию "result_table.csv".
+        :param mode: Режима обработки файла.
+        :return: None.
+        """
+
+        with open(
+            f"{filename}.csv", mode=mode, encoding="utf-8-sig", newline=""
+        ) as file:
+            writer = csv.writer(file, delimiter=";")
+            for title, article, descr, stock, cprice, oprice, url in zip(*args):
+                flatten = (
+                    title,
+                    article,
+                    *[x.split(":")[1].strip() for x in descr if x],
+                    stock,
+                    cprice,
+                    oprice,
+                    url,
+                )
+
+                writer.writerow(flatten)
+        print(f"Таблица '{filename}.csv' записана")
 
     @staticmethod
     def get_soup_data(item_url: Response, *args, **kwargs) -> list[str]:
