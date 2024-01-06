@@ -99,7 +99,7 @@ class DataParser(Parser):
             await self.write_headers(self.inside_card_headers, filename=table_filename)
 
             # получаем данные и дополняем созданный CSV файл.
-            await self.card_data_writer(
+            await self.__card_data_writer(
                 title_list,
                 article_list,
                 description_list,
@@ -112,7 +112,7 @@ class DataParser(Parser):
             )
 
         else:
-            await self.card_data_writer(
+            await self.__card_data_writer(
                 title_list,
                 article_list,
                 description_list,
@@ -228,7 +228,7 @@ class DataParser(Parser):
             writer.writerow(table_headers)
 
     @staticmethod
-    async def card_data_writer(
+    async def __card_data_writer(
         *args: list[str],
         filename: str,
         mode: str = "w",
@@ -254,6 +254,34 @@ class DataParser(Parser):
                     cprice,
                     oprice,
                     url,
+                )
+
+                writer.writerow(flatten)
+        print(f"Таблица '{filename}.csv' записана")
+
+    @staticmethod
+    async def __page_data_writer(
+        *args: list[str],
+        filename: str,
+        mode: str = "w",
+    ) -> None:
+        """
+        Метод для записи переданных данных в файл формата CSV.
+        :param args: Списки, содержащие информацию о товарах.
+        :param filename: Название файла, по умолчанию "result_table.csv".
+        :param mode: Режима обработки файла.
+        :return: None.
+        """
+
+        with open(
+            f"{filename}.csv", mode=mode, encoding="utf-8-sig", newline=""
+        ) as file:
+            writer = csv.writer(file, delimiter=";")
+            for title, description, price in zip(*args):
+                flatten = (
+                    title,
+                    *[x.split(":")[1].strip() for x in description if x],
+                    price,
                 )
 
                 writer.writerow(flatten)
