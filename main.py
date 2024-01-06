@@ -11,7 +11,13 @@ async def main():
     data_parser = DataParser()
 
     watches_url = await url_parser.get_url_for_each_product_card(specific="watch")
-    await data_parser.write_csv(watches_url)
+    # await data_parser.write_csv(watches_url, write_headers=False)
+    await data_parser.get_data_from_item_card(watches_url)
+
+    # all_category_url_page = await url_parser.get_url_for_each_category_page()
+    # await data_parser.get_data_from_page(all_category_url_page)
+    # print(all_category_url_page)
+
     print(f"Elapsed time: {time.perf_counter() - start_time}")
 
 
