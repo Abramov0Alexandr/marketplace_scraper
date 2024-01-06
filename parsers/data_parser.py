@@ -1,5 +1,6 @@
 import asyncio
 import csv
+import itertools
 
 import requests
 from bs4 import BeautifulSoup
@@ -74,32 +75,21 @@ class DataParser(Parser):
         products_url: list[str],
         table_filename: str = "result_table",
         write_headers: bool = True,
+        recording_method: str = "card_data",
     ) -> None:
         """
         Метод для записи данных в формат csv.
         :param table_filename: Название итогового файла.
         :param products_url: Список URL адресов на страницу товара.
         :param write_headers: Если флаг True, то в csv файле будут записаны заголовки таблицы.
+        :param recording_method:
         :return: None.
         """
 
-        # Получаем данные для записи в CSV.
-        (
-            title_list,
-            article_list,
-            description_list,
-            stock_list,
-            current_price_list,
-            old_price_list,
-            items_url,
-        ) = await self.__get_data_from_item_card(products_url)
+        if recording_method == "card_data":
 
-        if write_headers:
-            # Создаем CSV файл и записываем заголовки
-            await self.write_headers(self.inside_card_headers, filename=table_filename)
-
-            # получаем данные и дополняем созданный CSV файл.
-            await self.__card_data_writer(
+            # Получаем данные для записи в CSV.
+            (
                 title_list,
                 article_list,
                 description_list,
@@ -107,26 +97,66 @@ class DataParser(Parser):
                 current_price_list,
                 old_price_list,
                 items_url,
-                filename=table_filename,
-                mode="a",
+            ) = await self.__get_data_from_item_card(products_url)
+
+            if write_headers:
+
+                # Создаем CSV файл и записываем заголовки
+                await self.write_headers(
+                    self.inside_card_headers, filename=table_filename
+                )
+
+                # получаем данные и дополняем созданный CSV файл.
+                await self.__card_data_writer(
+                    title_list,
+                    article_list,
+                    description_list,
+                    stock_list,
+                    current_price_list,
+                    old_price_list,
+                    items_url,
+                    filename=table_filename,
+                    mode="a",
+                )
+
+            else:
+                await self.__card_data_writer(
+                    title_list,
+                    article_list,
+                    description_list,
+                    stock_list,
+                    current_price_list,
+                    old_price_list,
+                    items_url,
+                    filename=table_filename,
+                )
+
+        elif recording_method == "page_data":
+            (
+                title_list,
+                description_list,
+                price_list,
+            ) = await self.__get_data_from_page(products_url)
+
+            await self.__page_data_writer(
+                title_list, description_list, price_list, filename=table_filename
             )
 
         else:
-            await self.__card_data_writer(
-                title_list,
-                article_list,
-                description_list,
-                stock_list,
-                current_price_list,
-                old_price_list,
-                items_url,
-                filename=table_filename,
+            raise ValueError(
+                'Recording data method does not exist. You have to chose between "card_data" or "page_data".'
             )
 
     async def __get_data_from_item_card(
         self, products_url: list[str]
     ) -> tuple[
-        list[str], list[str], list[str], list[str], list[str], list[str], list[str]
+        list[str],
+        list[str],
+        list[list[str]],
+        list[str],
+        list[str],
+        list[str],
+        list[str],
     ]:
         """
         Метод для получения внутренней информации с карточки товара (раздел "Подробнее").
@@ -134,12 +164,12 @@ class DataParser(Parser):
         :return: Кортеж из списков, содержащих информацию о каждом товаре.
         """
 
-        title_list: list = []
-        article_list: list = []
-        description_list: list = []
-        stock_list: list = []
-        current_price_list: list = []
-        old_price_list: list = []
+        title_list: list[str] = []
+        article_list: list[str] = []
+        description_list: list[list[str]] = []
+        stock_list: list[str] = []
+        current_price_list: list[str] = []
+        old_price_list: list[str] = []
         items_url: list["str"] = [page for page in products_url]
 
         with requests.Session() as session:
@@ -177,16 +207,16 @@ class DataParser(Parser):
 
     async def __get_data_from_page(
         self, products_page_url: list[str]
-    ) -> tuple[list[str], list[str], list[str]]:
+    ) -> tuple[list[str], list[list[str]], list[str]]:
         """
         Метод для получения информации о товаре со страницы с карточками товаров.
         :param products_page_url: Список с URL адресами товаров.
         :return: Кортеж из списков, содержащих информацию о каждом товаре.
         """
 
-        title_list: list = []
-        description_list: list = []
-        price_list: list = []
+        title_list: list[str] = []
+        description_list: list[list[str]] = []
+        price_list: list[str] = []
 
         with requests.Session() as session:
             for page in products_page_url:
@@ -197,9 +227,9 @@ class DataParser(Parser):
                 items_description = self.get_soup_data(
                     response, "div", class_="description"
                 )
-                items_price = self.get_soup_data(response, "div", class_="price")
+                items_price = self.get_soup_data(response, "p", class_="price")
 
-                title_list.extend([item for item in items_title])
+                title_list.extend([item.strip() for item in items_title])
                 description_list.extend(
                     [item.split("\n") for item in items_description]
                 )
@@ -229,7 +259,7 @@ class DataParser(Parser):
 
     @staticmethod
     async def __card_data_writer(
-        *args: list[str],
+        *args: list[str] | list[list[str]],
         filename: str,
         mode: str = "w",
     ) -> None:
@@ -245,7 +275,15 @@ class DataParser(Parser):
             f"{filename}.csv", mode=mode, encoding="utf-8-sig", newline=""
         ) as file:
             writer = csv.writer(file, delimiter=";")
-            for title, article, descr, stock, cprice, oprice, url in zip(*args):
+            for (
+                title,
+                article,
+                descr,
+                stock,
+                cprice,
+                oprice,
+                url,
+            ) in itertools.zip_longest(*args):
                 flatten = (
                     title,
                     article,
@@ -261,7 +299,7 @@ class DataParser(Parser):
 
     @staticmethod
     async def __page_data_writer(
-        *args: list[str],
+        *args: list[str] | list[list[str]],
         filename: str,
         mode: str = "w",
     ) -> None:
@@ -277,7 +315,7 @@ class DataParser(Parser):
             f"{filename}.csv", mode=mode, encoding="utf-8-sig", newline=""
         ) as file:
             writer = csv.writer(file, delimiter=";")
-            for title, description, price in zip(*args):
+            for title, description, price in itertools.zip_longest(*args):
                 flatten = (
                     title,
                     *[x.split(":")[1].strip() for x in description if x],
