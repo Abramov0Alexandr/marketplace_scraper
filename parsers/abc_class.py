@@ -20,4 +20,4 @@ class Parser(ABC):
                 return response.text
 
             except (httpx.ConnectTimeout, httpx.ReadTimeout) as error:
-                print(error)
+                return error

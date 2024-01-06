@@ -1,6 +1,10 @@
 import asyncio
+import csv
+import itertools
 
+import requests
 from bs4 import BeautifulSoup
+from httpx import Response
 
 from parsers.abc_class import Parser
 
@@ -10,6 +14,25 @@ class DataParser(Parser):
     Класс для работы с данными, полученными в ходе анализа HTML страниц товаров.
     """
 
+    def __init__(self):
+
+        self.inside_card_headers = [
+            "Наименование",
+            "Артикул",
+            "Бренд",
+            "Модель",
+            "Тип",
+            "Технология экрана",
+            "Материал корпуса",
+            "Материал браслета",
+            "Размер",
+            "Сайт производителя",
+            "Наличие",
+            "Цена",
+            "Старая цена",
+            "Ссылка на карточку с товаром",
+        ]
+
     async def get_total_product_price(self, products_url: list[str]) -> str:
         """
         Метод для получения суммы общей стоимости товаров, размещенной на площадке.
@@ -17,7 +40,7 @@ class DataParser(Parser):
         :return: Информация об общей стоимости товаров.
         """
 
-        async def fetch_total_price_for_each_product(product_url: str):
+        async def fetch_total_price_for_each_product(product_url: str) -> int:
             """
             Вложенная функция для обхода всех URL адресов, сбора информации о количестве товаров и их стоимости.
             :param product_url: URL адрес товара.
@@ -46,3 +69,279 @@ class DataParser(Parser):
         total_price = sum(await asyncio.gather(*tasks))
 
         return f"Стоимость всех товаров на площадке: {total_price} руб."
+
+    async def write_csv(
+        self,
+        products_url: list[str],
+        table_filename: str = "result_table",
+        write_headers: bool = True,
+        recording_method: str = "card_data",
+    ) -> None:
+        """
+        Метод для записи данных в формат csv.
+        :param table_filename: Название итогового файла.
+        :param products_url: Список URL адресов на страницу товара.
+        :param write_headers: Если флаг True, то в csv файле будут записаны заголовки таблицы.
+        :param recording_method:
+        :return: None.
+        """
+
+        if recording_method == "card_data":
+
+            # Получаем данные для записи в CSV.
+            (
+                title_list,
+                article_list,
+                description_list,
+                stock_list,
+                current_price_list,
+                old_price_list,
+                items_url,
+            ) = await self.__get_data_from_item_card(products_url)
+
+            if write_headers:
+
+                # Создаем CSV файл и записываем заголовки
+                await self.write_headers(
+                    self.inside_card_headers, filename=table_filename
+                )
+
+                # получаем данные и дополняем созданный CSV файл.
+                await self.__card_data_writer(
+                    title_list,
+                    article_list,
+                    description_list,
+                    stock_list,
+                    current_price_list,
+                    old_price_list,
+                    items_url,
+                    filename=table_filename,
+                    mode="a",
+                )
+
+            else:
+                await self.__card_data_writer(
+                    title_list,
+                    article_list,
+                    description_list,
+                    stock_list,
+                    current_price_list,
+                    old_price_list,
+                    items_url,
+                    filename=table_filename,
+                )
+
+        elif recording_method == "page_data":
+            (
+                title_list,
+                description_list,
+                price_list,
+            ) = await self.__get_data_from_page(products_url)
+
+            await self.__page_data_writer(
+                title_list, description_list, price_list, filename=table_filename
+            )
+
+        else:
+            raise ValueError(
+                'Recording data method does not exist. You have to chose between "card_data" or "page_data".'
+            )
+
+    async def __get_data_from_item_card(
+        self, products_url: list[str]
+    ) -> tuple[
+        list[str],
+        list[str],
+        list[list[str]],
+        list[str],
+        list[str],
+        list[str],
+        list[str],
+    ]:
+        """
+        Метод для получения внутренней информации с карточки товара (раздел "Подробнее").
+        :param products_url: Список с URL адресами товаров.
+        :return: Кортеж из списков, содержащих информацию о каждом товаре.
+        """
+
+        title_list: list[str] = []
+        article_list: list[str] = []
+        description_list: list[list[str]] = []
+        stock_list: list[str] = []
+        current_price_list: list[str] = []
+        old_price_list: list[str] = []
+        items_url: list["str"] = [page for page in products_url]
+
+        with requests.Session() as session:
+            for page in products_url:
+                response = session.get(page)
+                response.encoding = "utf8"
+
+                items_title = self.get_soup_data(response, "p", id="p_header")
+                items_article = self.get_soup_data(response, "p", class_="article")
+                items_description = self.get_soup_data(response, "ul", id="description")
+                items_in_stock = self.get_soup_data(response, "span", id="in_stock")
+                items_current_price = self.get_soup_data(response, "span", id="price")
+                items_old_price = self.get_soup_data(response, "span", id="old_price")
+
+                title_list.extend([item for item in items_title])
+                article_list.extend(
+                    [article.split(": ")[1].strip() for article in items_article]
+                )
+                description_list.extend(
+                    [item.split("\n") for item in items_description]
+                )
+                stock_list.extend([item.split(": ")[1] for item in items_in_stock])
+                current_price_list.extend([item for item in items_current_price])
+                old_price_list.extend([item for item in items_old_price])
+
+        return (
+            title_list,
+            article_list,
+            description_list,
+            stock_list,
+            current_price_list,
+            old_price_list,
+            items_url,
+        )
+
+    async def __get_data_from_page(
+        self, products_page_url: list[str]
+    ) -> tuple[list[str], list[list[str]], list[str]]:
+        """
+        Метод для получения информации о товаре со страницы с карточками товаров.
+        :param products_page_url: Список с URL адресами товаров.
+        :return: Кортеж из списков, содержащих информацию о каждом товаре.
+        """
+
+        title_list: list[str] = []
+        description_list: list[list[str]] = []
+        price_list: list[str] = []
+
+        with requests.Session() as session:
+            for page in products_page_url:
+                response = session.get(page)
+                response.encoding = "utf8"
+
+                items_title = self.get_soup_data(response, "a", class_="name_item")
+                items_description = self.get_soup_data(
+                    response, "div", class_="description"
+                )
+                items_price = self.get_soup_data(response, "p", class_="price")
+
+                title_list.extend([item.strip() for item in items_title])
+                description_list.extend(
+                    [item.split("\n") for item in items_description]
+                )
+                price_list.extend([item for item in items_price])
+
+        return (
+            title_list,
+            description_list,
+            price_list,
+        )
+
+    @staticmethod
+    async def write_headers(
+        table_headers: list,
+        filename: str,
+    ) -> None:
+        """
+        Метод для первоначального создания CSV файла и записи в него заголовков таблицы.
+        :param table_headers: Заголовки для их записи в таблицу.
+        :param filename: Название файла, по умолчанию "result_table.csv"
+        :return: None.
+        """
+
+        with open(f"{filename}.csv", "w", encoding="utf-8-sig", newline="") as file:
+            writer = csv.writer(file, delimiter=";")
+            writer.writerow(table_headers)
+
+    @staticmethod
+    async def __card_data_writer(
+        *args: list[str] | list[list[str]],
+        filename: str,
+        mode: str = "w",
+    ) -> None:
+        """
+        Метод для записи переданных данных в файл формата CSV.
+        :param args: Списки, содержащие информацию о товарах.
+        :param filename: Название файла, по умолчанию "result_table.csv".
+        :param mode: Режима обработки файла.
+        :return: None.
+        """
+
+        with open(
+            f"{filename}.csv", mode=mode, encoding="utf-8-sig", newline=""
+        ) as file:
+            writer = csv.writer(file, delimiter=";")
+            for (
+                title,
+                article,
+                descr,
+                stock,
+                cprice,
+                oprice,
+                url,
+            ) in itertools.zip_longest(*args):
+                flatten = (
+                    title,
+                    article,
+                    *[x.split(":")[1].strip() for x in descr if x],
+                    stock,
+                    cprice,
+                    oprice,
+                    url,
+                )
+
+                writer.writerow(flatten)
+        print(f"Таблица '{filename}.csv' записана")
+
+    @staticmethod
+    async def __page_data_writer(
+        *args: list[str] | list[list[str]],
+        filename: str,
+        mode: str = "w",
+    ) -> None:
+        """
+        Метод для записи переданных данных в файл формата CSV.
+        :param args: Списки, содержащие информацию о товарах.
+        :param filename: Название файла, по умолчанию "result_table.csv".
+        :param mode: Режима обработки файла.
+        :return: None.
+        """
+
+        with open(
+            f"{filename}.csv", mode=mode, encoding="utf-8-sig", newline=""
+        ) as file:
+            writer = csv.writer(file, delimiter=";")
+            for title, description, price in itertools.zip_longest(*args):
+                flatten = (
+                    title,
+                    *[x.split(":")[1].strip() for x in description if x],
+                    price,
+                )
+
+                writer.writerow(flatten)
+        print(f"Таблица '{filename}.csv' записана")
+
+    @staticmethod
+    def get_soup_data(item_url: Response, *args, **kwargs) -> list[str]:
+        """
+        Метод для создания объекта BeautifulSoup и поиск элементов по указанным тегам и атрибутам.
+        :param item_url: URL адрес на товар.
+        :param args: HTML тег для поиска элемента.
+        :param kwargs: HTML аттрибуты для поиска элемента.
+        :return: Список найденных значений.
+        """
+
+        soup = BeautifulSoup(item_url.text, "lxml")
+        searched_tag = soup.find_all(args, kwargs)
+
+        if kwargs.get("class_"):
+            kwargs["class"] = kwargs.get("class_")
+            kwargs.pop("class_")
+            searched_tag = soup.find_all(args, attrs=kwargs)
+            return [item_data.text for item_data in searched_tag]
+
+        return [item_data.text for item_data in searched_tag]
