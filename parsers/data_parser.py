@@ -16,7 +16,7 @@ class DataParser(Parser):
 
     def __init__(self):
 
-        self.inside_card_headers = [
+        self.all_card_headers = [
             "Наименование",
             "Артикул",
             "Бренд",
@@ -27,6 +27,17 @@ class DataParser(Parser):
             "Материал браслета",
             "Размер",
             "Сайт производителя",
+            "Наличие",
+            "Цена",
+            "Старая цена",
+            "Ссылка на карточку с товаром",
+        ]
+
+        self.specific_card_headers = [
+            "Наименование",
+            "Артикул",
+            "Бренд",
+            "Модель",
             "Наличие",
             "Цена",
             "Старая цена",
@@ -68,7 +79,7 @@ class DataParser(Parser):
         ]
         total_price = sum(await asyncio.gather(*tasks))
 
-        return f"Стоимость всех товаров на площадке: {total_price} руб."
+        return f"Total price of items placed in the marketplace is: {total_price} rub."
 
     async def write_csv(
         self,
@@ -82,7 +93,8 @@ class DataParser(Parser):
         :param table_filename: Название итогового файла.
         :param products_url: Список URL адресов на страницу товара.
         :param write_headers: Если флаг True, то в csv файле будут записаны заголовки таблицы.
-        :param recording_method:
+        :param recording_method: Указание какая именно информация будет записана в файл,
+        со страницы (page_data) или с карточки (card_data).
         :return: None.
         """
 
@@ -102,9 +114,7 @@ class DataParser(Parser):
             if write_headers:
 
                 # Создаем CSV файл и записываем заголовки
-                await self.write_headers(
-                    self.inside_card_headers, filename=table_filename
-                )
+                await self.write_headers(self.all_card_headers, filename=table_filename)
 
                 # получаем данные и дополняем созданный CSV файл.
                 await self.__card_data_writer(
@@ -323,7 +333,7 @@ class DataParser(Parser):
                 )
 
                 writer.writerow(flatten)
-        print(f"Таблица '{filename}.csv' записана")
+        print(f"The table named '{filename}.csv' has been recorded")
 
     @staticmethod
     def get_soup_data(item_url: Response, *args, **kwargs) -> list[str]:
