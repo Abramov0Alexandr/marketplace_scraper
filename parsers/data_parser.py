@@ -143,7 +143,7 @@ class DataParser(Parser):
         stock_list: list[str] = []
         current_price_list: list[str] = []
         old_price_list: list[str] = []
-        items_url: list["str"] = [page for page in products_url]
+        items_url: list[str] = [page for page in products_url]
 
         with requests.Session() as session:
             for page in products_url:

@@ -114,8 +114,8 @@ class URLParser(Parser):
             return urls_list
 
         if specific.strip().lower() not in self.available_categories:
-            return (
-                'The specified category "%s" does not  match any of the available pattern'
+            raise ValueError(
+                'The specified category "%s" does not match any of the available pattern.'
                 % specific
             )
 
