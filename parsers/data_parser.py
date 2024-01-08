@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import itertools
+import re
 
 import requests
 from bs4 import BeautifulSoup
@@ -13,36 +14,6 @@ class DataParser(Parser):
     """
     Класс для работы с данными, полученными в ходе анализа HTML страниц товаров.
     """
-
-    def __init__(self):
-
-        self.all_card_headers = [
-            "Наименование",
-            "Артикул",
-            "Бренд",
-            "Модель",
-            "Тип",
-            "Технология экрана",
-            "Материал корпуса",
-            "Материал браслета",
-            "Размер",
-            "Сайт производителя",
-            "Наличие",
-            "Цена",
-            "Старая цена",
-            "Ссылка на карточку с товаром",
-        ]
-
-        self.specific_card_headers = [
-            "Наименование",
-            "Артикул",
-            "Бренд",
-            "Модель",
-            "Наличие",
-            "Цена",
-            "Старая цена",
-            "Ссылка на карточку с товаром",
-        ]
 
     async def get_total_product_price(self, products_url: list[str]) -> str:
         """
@@ -86,19 +57,16 @@ class DataParser(Parser):
         products_url: list[str],
         table_filename: str = "result_table",
         write_headers: bool = True,
-        recording_method: str = "card_data",
     ) -> None:
         """
         Метод для записи данных в формат csv.
         :param table_filename: Название итогового файла.
         :param products_url: Список URL адресов на страницу товара.
         :param write_headers: Если флаг True, то в csv файле будут записаны заголовки таблицы.
-        :param recording_method: Указание какая именно информация будет записана в файл,
-        со страницы (page_data) или с карточки (card_data).
         :return: None.
         """
 
-        if recording_method == "card_data":
+        if await self.is_product_card_url(products_url, self.available_categories):
 
             # Получаем данные для записи в CSV.
             (
@@ -141,7 +109,7 @@ class DataParser(Parser):
                     filename=table_filename,
                 )
 
-        elif recording_method == "page_data":
+        else:
             (
                 title_list,
                 description_list,
@@ -150,11 +118,6 @@ class DataParser(Parser):
 
             await self.__page_data_writer(
                 title_list, description_list, price_list, filename=table_filename
-            )
-
-        else:
-            raise ValueError(
-                'Recording data method does not exist. You have to chose between "card_data" or "page_data".'
             )
 
     async def __get_data_from_item_card(
@@ -187,12 +150,22 @@ class DataParser(Parser):
                 response = session.get(page)
                 response.encoding = "utf8"
 
-                items_title = self.get_soup_data(response, "p", id="p_header")
-                items_article = self.get_soup_data(response, "p", class_="article")
-                items_description = self.get_soup_data(response, "ul", id="description")
-                items_in_stock = self.get_soup_data(response, "span", id="in_stock")
-                items_current_price = self.get_soup_data(response, "span", id="price")
-                items_old_price = self.get_soup_data(response, "span", id="old_price")
+                items_title = await self.get_soup_data(response, "p", id="p_header")
+                items_article = await self.get_soup_data(
+                    response, "p", class_="article"
+                )
+                items_description = await self.get_soup_data(
+                    response, "ul", id="description"
+                )
+                items_in_stock = await self.get_soup_data(
+                    response, "span", id="in_stock"
+                )
+                items_current_price = await self.get_soup_data(
+                    response, "span", id="price"
+                )
+                items_old_price = await self.get_soup_data(
+                    response, "span", id="old_price"
+                )
 
                 title_list.extend([item for item in items_title])
                 article_list.extend(
@@ -233,11 +206,13 @@ class DataParser(Parser):
                 response = session.get(page)
                 response.encoding = "utf8"
 
-                items_title = self.get_soup_data(response, "a", class_="name_item")
-                items_description = self.get_soup_data(
+                items_title = await self.get_soup_data(
+                    response, "a", class_="name_item"
+                )
+                items_description = await self.get_soup_data(
                     response, "div", class_="description"
                 )
-                items_price = self.get_soup_data(response, "p", class_="price")
+                items_price = await self.get_soup_data(response, "p", class_="price")
 
                 title_list.extend([item.strip() for item in items_title])
                 description_list.extend(
@@ -336,7 +311,7 @@ class DataParser(Parser):
         print(f"The table named '{filename}.csv' has been recorded")
 
     @staticmethod
-    def get_soup_data(item_url: Response, *args, **kwargs) -> list[str]:
+    async def get_soup_data(item_url: Response, *args, **kwargs) -> list[str]:
         """
         Метод для создания объекта BeautifulSoup и поиск элементов по указанным тегам и атрибутам.
         :param item_url: URL адрес на товар.
@@ -355,3 +330,31 @@ class DataParser(Parser):
             return [item_data.text for item_data in searched_tag]
 
         return [item_data.text for item_data in searched_tag]
+
+    @staticmethod
+    async def is_product_card_url(
+        checked_urls: list[str], checked_categories: list[str]
+    ) -> bool:
+        """
+        Метод для проверки какие именно URL адреса находятся в передаваемом списке.
+        В случае, если список адресов содержит ссылки на внутреннюю карточку товара, то возвращается True.
+        :param checked_urls: Список URL адресов, которые будут проверены.
+        :param checked_categories: Список категорий, которые будут искаться, как фрагмент URL адреса карточки товара.
+        :return: Boolean.
+        """
+
+        pattern = re.compile(r"/html/(\w+)/")
+        categories = set(
+            [
+                pattern.search(url).group(1)
+                for url in checked_urls
+                if pattern.search(url)
+            ]
+        )
+        return bool(categories.intersection(set(checked_categories)))
+
+    def __str__(self):
+        return f"Class {self.__class__.__name__} for processing the data received during parsing"
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}()"
