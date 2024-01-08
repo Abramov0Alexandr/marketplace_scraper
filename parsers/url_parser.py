@@ -16,17 +16,6 @@ class URLParser(Parser):
     - URL адреса каждого товара из указанной категории.
     """
 
-    def __init__(self):
-        self.__starting_url = "https://parsinger.ru/html/index1_page_1.html"
-        self.__base_shop_url = "https://parsinger.ru/html/"
-        self.__available_categories = [
-            "watch",
-            "mobile",
-            "mouse",
-            "hdd",
-            "headphones",
-        ]
-
     async def get_category_urls(self) -> list[str]:
         """
         Метод для получения URL адресов на каждую категорию товара.
@@ -136,16 +125,4 @@ class URLParser(Parser):
         )
 
     def __repr__(self):
-        return self.__class__
-
-    @property
-    def starting_url(self):
-        return self.__starting_url
-
-    @property
-    def base_shop_url(self):
-        return self.__base_shop_url
-
-    @property
-    def available_categories(self):
-        return self.__available_categories
+        return f"{self.__class__.__name__}()"
