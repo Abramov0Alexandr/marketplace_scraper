@@ -1,5 +1,5 @@
 import asyncio
-import re
+from re import search
 from typing import Union
 
 from bs4 import BeautifulSoup
@@ -15,6 +15,10 @@ class URLParser(Parser):
     - URL адреса каждого товара каждой категории.
     - URL адреса каждого товара из указанной категории.
     """
+
+    def __init__(self):
+        self.__starting_url = "https://parsinger.ru/html/index1_page_1.html"
+        self.__base_shop_url = "https://parsinger.ru/html/"
 
     async def get_category_urls(self) -> list[str]:
         """
@@ -107,7 +111,7 @@ class URLParser(Parser):
 
             for url_page in await compile_final_url_list():
                 try:
-                    urls_list.append(re.search(rf"\b{specific}/\d", url_page).string)
+                    urls_list.append(search(rf"\b{specific}/\d", url_page).string)
                 except AttributeError:
                     pass
 
@@ -118,6 +122,14 @@ class URLParser(Parser):
                 'The specified category "%s" does not match any of the available pattern.'
                 % specific
             )
+
+    @property
+    def starting_url(self):
+        return self.__starting_url
+
+    @property
+    def base_shop_url(self):
+        return self.__base_shop_url
 
     def __str__(self):
         return (
