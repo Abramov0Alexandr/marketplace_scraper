@@ -1,6 +1,7 @@
 import asyncio
+from re import Match
 from re import search
-from typing import Union
+from typing import Optional
 
 from bs4 import BeautifulSoup
 
@@ -61,8 +62,8 @@ class URLParser(Parser):
         return [url for sublist in all_category_list_url for url in sublist]
 
     async def get_url_for_each_product_card(
-        self, specific: Union[str, None] = None
-    ) -> list[str] | str:
+        self, specific: Optional[str] = None
+    ) -> Optional[list[str]]:
         """
         Метод позволяет получить URL адреса каждого товара каждой категории.
         В случае, если определен параметр specific, то будут возвращены URL адреса всех товаров из той категории,
@@ -110,9 +111,10 @@ class URLParser(Parser):
             urls_list: list = []
 
             for url_page in await compile_final_url_list():
-                try:
-                    urls_list.append(search(rf"\b{specific}/\d", url_page).string)
-                except AttributeError:
+                pattern: Match[str] | None = search(rf"\b{specific}/\d", url_page)
+                if pattern is not None:
+                    urls_list.append(pattern.string)
+                else:
                     pass
 
             return urls_list
@@ -122,6 +124,8 @@ class URLParser(Parser):
                 'The specified category "%s" does not match any of the available pattern.'
                 % specific
             )
+
+        return None
 
     @property
     def starting_url(self):
