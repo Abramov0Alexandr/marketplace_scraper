@@ -13,8 +13,6 @@ class Parser(ABC):
     def __init__(self) -> None:
         self.__starting_url: str = ""
         self.__base_shop_url: str = ""
-        self.__all_card_headers: list = []
-        self.__specific_card_headers: list = []
 
     @property
     def available_categories(self) -> list[str]:

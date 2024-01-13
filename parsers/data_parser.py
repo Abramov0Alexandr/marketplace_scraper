@@ -4,6 +4,7 @@ import itertools
 from re import compile
 from re import Pattern
 
+import httpx
 import requests
 from bs4 import BeautifulSoup
 from httpx import Response
@@ -17,34 +18,7 @@ class DataParser(Parser):
     """
 
     def __init__(self):
-
-        self.__all_card_headers = [
-            "Наименование",
-            "Артикул",
-            "Бренд",
-            "Модель",
-            "Тип",
-            "Технология экрана",
-            "Материал корпуса",
-            "Материал браслета",
-            "Размер",
-            "Сайт производителя",
-            "Наличие",
-            "Цена",
-            "Старая цена",
-            "Ссылка на карточку с товаром",
-        ]
-
-        self.__specific_card_headers = [
-            "Наименование",
-            "Артикул",
-            "Бренд",
-            "Модель",
-            "Наличие",
-            "Цена",
-            "Старая цена",
-            "Ссылка на карточку с товаром",
-        ]
+        pass
 
     async def get_total_product_price(self, products_url: list[str]) -> str:
         """
@@ -97,7 +71,7 @@ class DataParser(Parser):
         :return: None.
         """
 
-        if await self.is_product_card_url(products_url, self.available_categories):
+        if await self.__is_product_card_url(products_url, self.available_categories):
 
             # Получаем данные для записи в CSV.
             (
@@ -113,7 +87,10 @@ class DataParser(Parser):
             if write_headers:
 
                 # Создаем CSV файл и записываем заголовки
-                await self.write_headers(self.all_card_headers, filename=table_filename)
+                await self.__write_headers(
+                    await self.__generate_card_headers(products_url),
+                    filename=table_filename,
+                )
 
                 # получаем данные и дополняем созданный CSV файл.
                 await self.__card_data_writer(
@@ -181,20 +158,20 @@ class DataParser(Parser):
                 response = session.get(page)
                 response.encoding = "utf8"
 
-                items_title = await self.get_soup_data(response, "p", id="p_header")
-                items_article = await self.get_soup_data(
+                items_title = await self.__get_soup_data(response, "p", id="p_header")
+                items_article = await self.__get_soup_data(
                     response, "p", class_="article"
                 )
-                items_description = await self.get_soup_data(
+                items_description = await self.__get_soup_data(
                     response, "ul", id="description"
                 )
-                items_in_stock = await self.get_soup_data(
+                items_in_stock = await self.__get_soup_data(
                     response, "span", id="in_stock"
                 )
-                items_current_price = await self.get_soup_data(
+                items_current_price = await self.__get_soup_data(
                     response, "span", id="price"
                 )
-                items_old_price = await self.get_soup_data(
+                items_old_price = await self.__get_soup_data(
                     response, "span", id="old_price"
                 )
 
@@ -237,13 +214,13 @@ class DataParser(Parser):
                 response = session.get(page)
                 response.encoding = "utf8"
 
-                items_title = await self.get_soup_data(
+                items_title = await self.__get_soup_data(
                     response, "a", class_="name_item"
                 )
-                items_description = await self.get_soup_data(
+                items_description = await self.__get_soup_data(
                     response, "div", class_="description"
                 )
-                items_price = await self.get_soup_data(response, "p", class_="price")
+                items_price = await self.__get_soup_data(response, "p", class_="price")
 
                 title_list.extend([item.strip() for item in items_title])
                 description_list.extend(
@@ -258,7 +235,34 @@ class DataParser(Parser):
         )
 
     @staticmethod
-    async def write_headers(
+    async def __generate_card_headers(item_card_url: list[str]) -> list[str]:
+        """
+        Метод для генерации заголовков csv таблицы.
+        :param item_card_url: Список URL адресов с карточками товаров.
+        :return: Список заголовков.
+        """
+
+        card_url = httpx.get(item_card_url[1])
+        card_url.encoding = "utf-8"
+
+        soup = BeautifulSoup(card_url, "lxml")
+        description = soup.find("ul", id="description")
+        description_list = [i.text.split(": ")[0].strip() for i in description]
+
+        headers_list = [header for header in description_list if header]
+
+        return [
+            "Наименование",
+            "Артикул",
+            *headers_list,
+            "Наличие",
+            "Цена",
+            "Старая цена",
+            "Ссылка на карточку с товаром",
+        ]
+
+    @staticmethod
+    async def __write_headers(
         table_headers: list,
         filename: str,
     ) -> None:
@@ -342,7 +346,7 @@ class DataParser(Parser):
         print(f"The table named '{filename}.csv' has been recorded")
 
     @staticmethod
-    async def get_soup_data(item_url: Response, *args, **kwargs) -> list[str]:
+    async def __get_soup_data(item_url: Response, *args, **kwargs) -> list[str]:
         """
         Метод для создания объекта BeautifulSoup и поиск элементов по указанным тегам и атрибутам.
         :param item_url: URL адрес на товар.
@@ -363,7 +367,7 @@ class DataParser(Parser):
         return [item_data.text for item_data in searched_tag]
 
     @staticmethod
-    async def is_product_card_url(
+    async def __is_product_card_url(
         checked_urls: list[str], checked_categories: list[str]
     ) -> bool:
         """
@@ -384,14 +388,6 @@ class DataParser(Parser):
             ]
         )
         return bool(categories.intersection(set(checked_categories)))
-
-    @property
-    def all_card_headers(self):
-        return self.__all_card_headers
-
-    @property
-    def specific_card_headers(self):
-        return self.__specific_card_headers
 
     def __str__(self):
         return f"Class {self.__class__.__name__} for processing the data received during parsing"
