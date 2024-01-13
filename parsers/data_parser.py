@@ -1,7 +1,8 @@
 import asyncio
 import csv
 import itertools
-import re
+from re import compile
+from re import Pattern
 
 import requests
 from bs4 import BeautifulSoup
@@ -14,6 +15,36 @@ class DataParser(Parser):
     """
     Класс для работы с данными, полученными в ходе анализа HTML страниц товаров.
     """
+
+    def __init__(self):
+
+        self.__all_card_headers = [
+            "Наименование",
+            "Артикул",
+            "Бренд",
+            "Модель",
+            "Тип",
+            "Технология экрана",
+            "Материал корпуса",
+            "Материал браслета",
+            "Размер",
+            "Сайт производителя",
+            "Наличие",
+            "Цена",
+            "Старая цена",
+            "Ссылка на карточку с товаром",
+        ]
+
+        self.__specific_card_headers = [
+            "Наименование",
+            "Артикул",
+            "Бренд",
+            "Модель",
+            "Наличие",
+            "Цена",
+            "Старая цена",
+            "Ссылка на карточку с товаром",
+        ]
 
     async def get_total_product_price(self, products_url: list[str]) -> str:
         """
@@ -143,7 +174,7 @@ class DataParser(Parser):
         stock_list: list[str] = []
         current_price_list: list[str] = []
         old_price_list: list[str] = []
-        items_url: list["str"] = [page for page in products_url]
+        items_url: list[str] = [page for page in products_url]
 
         with requests.Session() as session:
             for page in products_url:
@@ -265,8 +296,8 @@ class DataParser(Parser):
                 article,
                 descr,
                 stock,
-                cprice,
-                oprice,
+                current_price,
+                old_price,
                 url,
             ) in itertools.zip_longest(*args):
                 flatten = (
@@ -274,8 +305,8 @@ class DataParser(Parser):
                     article,
                     *[x.split(":")[1].strip() for x in descr if x],
                     stock,
-                    cprice,
-                    oprice,
+                    current_price,
+                    old_price,
                     url,
                 )
 
@@ -338,12 +369,13 @@ class DataParser(Parser):
         """
         Метод для проверки какие именно URL адреса находятся в передаваемом списке.
         В случае, если список адресов содержит ссылки на внутреннюю карточку товара, то возвращается True.
+        Иначе, список содержит адреса на страницы с категориями товаров.
         :param checked_urls: Список URL адресов, которые будут проверены.
         :param checked_categories: Список категорий, которые будут искаться, как фрагмент URL адреса карточки товара.
         :return: Boolean.
         """
 
-        pattern = re.compile(r"/html/(\w+)/")
+        pattern: Pattern[str] = compile(r"/html/(\w+)/")
         categories = set(
             [
                 pattern.search(url).group(1)
@@ -352,6 +384,14 @@ class DataParser(Parser):
             ]
         )
         return bool(categories.intersection(set(checked_categories)))
+
+    @property
+    def all_card_headers(self):
+        return self.__all_card_headers
+
+    @property
+    def specific_card_headers(self):
+        return self.__specific_card_headers
 
     def __str__(self):
         return f"Class {self.__class__.__name__} for processing the data received during parsing"
