@@ -4,7 +4,7 @@
 Всегда считал, что для хорошего Python разработчика написать какой-либо парсер не является проблемой. <br>
 Но вот у меня с этой технологией как-то не складывалось, поэтому я решил изменить эту ситуацию и углубиться в данную тему 🤓
 
-Существует простенький веб-ресурс, который представляет собой простейшую модель маркетплейса.<br>
+Существует простенький веб-ресурс, который представляет собой простейшую модель [маркетплейса](https://parsinger.ru/html/index1_page_1.html).<br>
 Именно на нем я буду тренироваться в данном проекте.
 
 ## Цели проекта
@@ -16,8 +16,8 @@
 Задачи, которые я поставил перед проектом:
 * __Скорость работы__ <br>
 Так как парсер обычно обрабатывает множество ресурсов, то я решил, что мой должен работать быстро
-* __Запись данных в файлы различных форматов__ <br>
-JSON, CSV
+* __Запись данных в файлы различные форматы__ <br>
+JSON, csv
 
 ## Стек технологий:
 - python
@@ -32,59 +32,125 @@ JSON, CSV
 
 В данный момент реализованы следующий возможности:
 
-- Получение URL адресов всех категорий товаров
+- Получение URL адресов всех категорий товаров.
 ```python
-start_time = time.perf_counter()
+import time
 
-url_parser = URLParser()
-await url_parser.get_category_urls()
+from parsers.url_parser import URLParser
 
-print(f'Elapsed time: {time.perf_counter() - start_time}')
-# Elapsed time: 0.13041989994235337
+async def main():
+    start_time = time.perf_counter()
+    url_parser = URLParser()
+    await url_parser.get_category_urls()
+
+    print(f"Elapsed time: {time.perf_counter() - start_time}")
+    # Elapsed time: 0.13041989994235337
 ```
 
-- Получение URL адресов всех страниц со всех категорий товаров
+- Получение URL адресов всех страниц со всех категорий товаров.
 ```python
-start_time = time.perf_counter()
+import time
 
-url_parser = URLParser()
-await url_parser.get_url_for_each_category_page()
+from parsers.url_parser import URLParser
 
-print(f'Elapsed time: {time.perf_counter() - start_time}')
-# Elapsed time: 0.41123030008748174
+async def main():
+    start_time = time.perf_counter()
+    url_parser = URLParser()
+    await url_parser.get_url_for_each_category_page()
+
+    print(f"Elapsed time: {time.perf_counter() - start_time}")
+    # Elapsed time: 0.41123030008748174
 ```
 
-- Получение URL адресов всех товаров на площадке
+- Получение URL адресов всех товаров на площадке.
 ```python
-start_time = time.perf_counter()
+import time
 
-url_parser = URLParser()
-await url_parser.get_url_for_each_product_card()
+from parsers.url_parser import URLParser
 
-print(f'Elapsed time: {time.perf_counter() - start_time}')
-# Elapsed time: 0.7981272999895737
+async def main():
+    start_time = time.perf_counter()
+    url_parser = URLParser()
+    await url_parser.get_url_for_each_product_card()
+
+    print(f"Elapsed time: {time.perf_counter() - start_time}")
+    # Elapsed time: 0.7981272999895737
 ```
 
-- Получение общей стоимости всех товаров, размещенных на площадке
+- Получение URL адресов всех товаров указанной категории.
 ```python
-start_time = time.perf_counter()
-url_parser = URLParser()
-data_parser = DataParser()
+import time
 
-product_url_list = await url_parser.get_url_for_each_product_card()
-await data_parser.get_total_product_price(product_url_list)
+from parsers.url_parser import URLParser
 
-print(f'Elapsed time: {time.perf_counter() - start_time}')
-# Elapsed time: 2.8478403000626713
+async def main():
+    start_time = time.perf_counter()
+    url_parser = URLParser()
+
+    await url_parser.get_url_for_each_product_card(specific="watch")
+
+    print(f"Elapsed time: {time.perf_counter() - start_time}")
+    # Elapsed time: 0.8192314000334591
 ```
 
-# ToDo List
+- Получение общей стоимости всех товаров, размещенных на площадке.
+```python
+import time
 
-Необходимо реализовать следующий функционал:
-- запись данных в файлы
-- подключить SQLAlchemy
-- подключить Postgresql через asyncpg
+from parsers.data_parser import DataParser
+from parsers.url_parser import URLParser
 
+async def main():
+    start_time = time.perf_counter()
+    url_parser = URLParser()
+    data_parser = DataParser()
+
+    product_url_list = await url_parser.get_url_for_each_product_card()
+    await data_parser.get_total_product_price(product_url_list)
+
+    print(f"Elapsed time: {time.perf_counter() - start_time}")
+    # Elapsed time: 2.8478403000626713
+```
+
+- Запись данных из карточки товара по указанной категории.
+- Возможна запись с заголовками и без.
+- Для каждой категории, заголовки собираются автоматически.
+```python
+import time
+
+from parsers.data_parser import DataParser
+from parsers.url_parser import URLParser
+
+async def main():
+    start_time = time.perf_counter()
+    url_parser = URLParser()
+    data_parser = DataParser()
+
+    product_card_urls = await url_parser.get_url_for_each_product_card(specific="mouse")
+    await data_parser.write_csv(product_card_urls, table_filename="mouse_data_table", write_headers=False)
+
+    print(f"Elapsed time: {time.perf_counter() - start_time}")
+    # Elapsed time: 2.432509000005666
+```
+
+- Запись данных о товарах со всех страниц всех категорий.
+```python
+import time
+
+from parsers.data_parser import DataParser
+from parsers.url_parser import URLParser
+
+async def main():
+    start_time = time.perf_counter()
+    data_parser = DataParser()
+    url_parser = URLParser()
+
+    product_page_urls = await url_parser.get_url_for_each_category_page()
+    await data_parser.write_csv(product_page_urls, table_filename="all_items_data_table")
+
+    print(f"Elapsed time: {time.perf_counter() - start_time}")
+    # Elapsed time: 1.6246397999930196
+```
 
 ## Лицензия
 marketplace scraper распространяется по [MIT License](https://opensource.org/licenses/MIT).
